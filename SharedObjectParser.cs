@@ -103,8 +103,8 @@ class SOReader
             val |= (Int32)part;
             data_bytes += 8;
         }
-        //Check if number is negative
-        if(val >> (data_bytes - 1) == 1)
+        //Check if number is negative. Only numbers with 29 data bytes can be negative.
+        if (val >> (data_bytes - 1) == 1 && data_bytes == 29)
         {
             val = (Int32)(-(~(val | (0xFFFFFFFF << data_bytes)) + 1));
         }
