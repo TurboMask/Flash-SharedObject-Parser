@@ -48,4 +48,5 @@ To test if new app version is reading old data correctly you need to install new
 ##### Convert certificates
 
 To publish your ported app to app store it needs to be signed with the same certificate as previous (AIR) version. It's straightforward for iOS, but for Android and Amazon you'll possibly need to convert certificate to other format which is readable for Unity. This command does the job:
-`keytool -importkeystore -srckeystore [old cert name].p12 -srcstoretype pkcs12 -srcalias [alias] -destkeystore [new cert name].keystore -deststoretype jks -deststorepass [password] -destalias [alias]`. For `alias` you can just use `1`, but in general it depends on what data is in your source certificate.
+`keytool -importkeystore -srckeystore [old cert name].p12 -srcstoretype pkcs12 -srcalias [alias] -destkeystore [new cert name].keystore -deststoretype jks -deststorepass [password] -destalias [alias]`.
+This command shows what `alias` is used in original certificate: `keytool -v -list -keystore [old cert name].p12`.
