@@ -9,7 +9,6 @@
 using System;
 using System.IO;
 using System.Collections.Generic;
-using UnityEngine;
 
 public class SharedObject
 {
@@ -89,7 +88,7 @@ class SOReader
             part = Read8();
             finished = (part & 0x80) == 0;
             val = (val << 7);
-            val |= (Int32)(part & 0b1111111);
+            val |= (Int32)(part & 0b01111111);
             data_bytes += 7;
             if (finished)
             {
@@ -183,7 +182,7 @@ public class SharedObjectParser
         }
         if (!File.Exists(filename))
         {
-            Debug.Log("SharedObject " + filename + " doesn't exist.");
+            Console.WriteLine("SharedObject " + filename + " doesn't exist.");
             return so;
         }
         SOReader file = new SOReader(filename);
@@ -197,56 +196,60 @@ public class SharedObjectParser
         header.padding2 = file.Read32();
         header.padding3 = file.Read16();
         header.padding4 = file.Read32();
-        Debug.Log("Data size: " + header.file_size);
+        Console.WriteLine("Data size: " + header.file_size);
 
         //Read SO name and othe rparameters
         UInt16 so_name_length = file.Read16();
         string so_name = file.ReadString(so_name_length);
         //string_table.Add(so_name);
-        Debug.Log("SO name: " + so_name);
+        Console.WriteLine("SO name: " + so_name);
         UInt32 so_type = file.Read32();
-        Debug.Log("SO type: " + so_type);
+        Console.WriteLine("SO type: " + so_type);
 
         while (file.pos < file.file_size)
         {
             SOValue so_value = new SOValue();
 
             // Read parameter name. Name length is encoded into 7 bits, 8th bit is flag if name is inline or indexed.
-            byte param_length = file.Read8();
-            bool name_inline = (param_length & 0x01) > 0;
-            param_length >>= 1;
+            UInt32 length_int = (UInt32)file.ReadCompressedInt();
+            bool name_inline = (length_int & 0x01) > 0;
+            length_int >>= 1;
             if (name_inline)
             {
-                so_value.key = file.ReadString(param_length);
+                so_value.key = file.ReadString((int)length_int);
                 string_table.Add(so_value.key);
             }
             else
             {
-                so_value.key = string_table[(int)param_length];
+                so_value.key = string_table[(int)length_int];
             }
-            Debug.Log(so_value.key);
+            Console.WriteLine(so_value.key + " (inline: " + name_inline + ")");
 
             // Read parameter value. First byte is value type.
             so_value.type = file.Read8();
-            if (so_value.type == SOTypes.TYPE_BOOL_FALSE)
+            if(so_value.type == SOTypes.TYPE_NULL)
+            {
+                Console.WriteLine("\tNULL");
+            }
+            else if (so_value.type == SOTypes.TYPE_BOOL_FALSE)
             {
                 so_value.bool_val = false;
-                Debug.Log("\tFalse");
+                Console.WriteLine("\tFalse");
             }
             else if (so_value.type == SOTypes.TYPE_BOOL_TRUE)
             {
                 so_value.bool_val = true;
-                Debug.Log("\tTrue");
+                Console.WriteLine("\tTrue");
             }
             else if (so_value.type == SOTypes.TYPE_INT)
             {
                 so_value.int_val = (int)file.ReadCompressedInt();
-                Debug.Log("\t" + so_value.int_val);
+                Console.WriteLine("\t" + so_value.int_val);
             }
             else if (so_value.type == SOTypes.TYPE_DOUBLE)
             {
                 so_value.double_val = file.ReadDouble();
-                Debug.Log("\t" + so_value.double_val);
+                Console.WriteLine("\t" + so_value.double_val);
             }
             else if (so_value.type == SOTypes.TYPE_STRING)
             {
@@ -255,27 +258,39 @@ public class SharedObjectParser
                 val_length >>= 1;
                 if (!val_inline)
                 {
-                    Debug.Log("\tReference to string: " + val_length);
+                    Console.WriteLine("\tReference to string: " + val_length);
                     if (val_length < string_table.Count)
                     {
                         so_value.string_val = string_table[(int)val_length];
-                        Debug.Log("\t" + so_value.string_val);
+                        Console.WriteLine("\t" + so_value.string_val);
                     }
                 }
                 else
                 {
                     so_value.string_val = file.ReadString((int)val_length);
                     string_table.Add(so_value.string_val);
-                    Debug.Log("\t" + so_value.string_val + " (" + val_length + ")");
+                    Console.WriteLine("\t" + so_value.string_val + " (" + val_length + ")");
                 }
             }
             else
             {
-                Debug.Log("Type not implemented yet: " + so_value.type);
-                break;
+                Console.WriteLine("Type not implemented yet: " + so_value.type);
+                //Move read position to next item
+                while (file.pos < file.file_size)
+                {
+                    byte next_byte = file.Read8();
+                    if(next_byte == 0)
+                    {
+                        --file.pos;
+                        break;
+                    }
+                }
             }
             so.values.Add(so_value);
-            file.Read8();   //Padding
+            if(file.pos < file.file_size)
+            {
+                file.Read8();   //Padding
+            }
         }
         return so;
     }
